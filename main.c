@@ -1,6 +1,3 @@
-
-
-
 #include "stm32l4xx.h"
 			
 #include "stm32l4xx_hal.h"
@@ -11,25 +8,41 @@
 #include "stm32l4xx_ll_usart.h"
 
 ADC_HandleTypeDef myAdc = {};
+TIM_HandleTypeDef tim_hal = {};
 
 int main(void)
 {
 	HAL_Init();
 
-	__HAL_RCC_GPIOB_CLK_ENABLE();
-	GPIO_InitTypeDef gpio_hal = {};
-	gpio_hal.Mode = GPIO_MODE_OUTPUT_PP;
-	gpio_hal.Pin = GPIO_PIN_3;
-	HAL_GPIO_Init(GPIOB, &gpio_hal);
+
+	//TIM2
+		__HAL_RCC_TIM2_CLK_ENABLE();
+		tim_hal.Instance = TIM2;
+		tim_hal.Init.Prescaler = SystemCoreClock/1000;
+		tim_hal.Init.Period = 721;
+		HAL_TIM_Base_Init(&tim_hal);
+
+		HAL_TIM_Base_Start_IT(&tim_hal);
+		HAL_NVIC_EnableIRQ(TIM2_IRQn);
+
+
+		//--------------------------------------------------------------------------------------------------
+		//							CMSIS GPIO - DIODA LED_B3
+		//--------------------------------------------------------------------------------------------------
+
+		RCC->AHB2ENR &= ~RCC_AHB2ENR_GPIOBEN_Msk;
+		RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+		GPIOB->MODER &= ~GPIO_MODER_MODE3;
+		GPIOB->MODER |= GPIO_MODER_MODE3_0;
+
+		GPIOB->ODR = GPIO_ODR_OD3;
 
 
 	//--------------------------------------------------------------------------------------------------
 	//							UART (LL)
 	//--------------------------------------------------------------------------------------------------
-
-
-	// Konfiguracja PORTA pod UART
-	__HAL_RCC_GPIOA_CLK_ENABLE();		// Do przerobienia na LL_ ??
+	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
+	LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_USART2);
 
 	LL_GPIO_InitTypeDef gpio_uart;
 	LL_GPIO_StructInit(&gpio_uart);
@@ -39,9 +52,6 @@ int main(void)
 	LL_GPIO_Init(GPIOA, &gpio_uart);
 
 
-	// Konfiguracja PORTA pod UART
-	__HAL_RCC_GPIOA_CLK_ENABLE();		// Do przerobienia na LL_ ??
-
 	LL_GPIO_StructInit(&gpio_uart);
 	gpio_uart.Mode = LL_GPIO_MODE_ALTERNATE;
 	gpio_uart.Alternate = LL_GPIO_AF_7;
@@ -49,14 +59,13 @@ int main(void)
 	LL_GPIO_Init(GPIOA, &gpio_uart);
 
 
-	__HAL_RCC_USART2_CLK_ENABLE();		// Do przerobienia na LL_ ??
-
 	LL_USART_InitTypeDef ll_uart;
 	LL_USART_StructInit(&ll_uart);
-	ll_uart.Init.BaudRate = 115200;
-	ll_uart.Init.Mode = LL_USART_DIRECTION_TX;
+	ll_uart.BaudRate = 115200;
+	ll_uart.TransferDirection = LL_USART_DIRECTION_TX;
 
 	LL_USART_Init(USART2, &ll_uart);
+	LL_USART_Enable(USART2);
 
 
 
@@ -70,15 +79,35 @@ int main(void)
 	myAdc.Instance = ADC1;
 	myAdc.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
 	myAdc.Init.Resolution = ADC_RESOLUTION_12B;
-	HAL_ADCEx_Calibration_Start();
+	//HAL_ADCEx_Calibration_Start(&myAdc);
+
+	ADC_ChannelConfTypeDef hadc = {};
+	hadc.Channel = ADC_CHANNEL_TEMPSENSOR;
+	hadc.Rank = 1;
+	hadc.SamplingTime = ADC_SAMPLETIME_640CYCLES_5;
+	HAL_ADC_ConfigChannel(&myAdc, &hadc);
+
 
 
 	int32_t data;
+	int32_t data2;
+	uint8_t ud = 'T';
 
 	for(;;)
 	{
-		//HAL_UART_Transmit
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
+		//CMSIS toggle pin
+		GPIOB->ODR ^=  GPIO_ODR_OD3;
+
+		while(!LL_USART_IsActiveFlag_TXE(USART2));
+		LL_USART_TransmitData8(USART2,ud);
+
+		ud = 10;
+		while(!LL_USART_IsActiveFlag_TXE(USART2));
+		LL_USART_TransmitData8(USART2,ud);
+
+		ud = 13;
+		while(!LL_USART_IsActiveFlag_TXE(USART2));
+		LL_USART_TransmitData8(USART2,ud);
 
 		HAL_Delay(500UL);
 
@@ -87,9 +116,22 @@ int main(void)
 		{
 			data = HAL_ADC_GetValue(&myAdc);
 			HAL_ADC_Stop(&myAdc);
-			data2 = sensorValue * ADC_REFERENCE_VOLTAGE_MV / ADC_MAX_OUTPUT_VALUE;
-
+			data2 = (float)data * 3.3 / 4096;
+			while(!LL_USART_IsActiveFlag_TXE(USART2));
+			LL_USART_TransmitData8(USART2,(uint8_t)data2);
 		}
+
+	}
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim)
+{
+	if(htim->Instance == TIM6)
+	{
+		HAL_IncTick();
+	}
+	else if(htim->Instance == TIM2)
+	{
 
 	}
 }
