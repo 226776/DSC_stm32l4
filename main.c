@@ -1,13 +1,3 @@
-/**
-  ******************************************************************************
-  * @file    main.c
-  * @author  Ac6
-  * @version V1.0
-  * @date    01-December-2013
-  * @brief   Default main function.
-  ******************************************************************************
-*/
-
 
 #include "stm32l4xx.h"
 			
@@ -16,58 +6,73 @@
 #include "stm32l4xx_ll_gpio.h"
 #include "stm32l4xx_ll_bus.h"
 #include "stm32l4xx_ll_utils.h"
-#include "stm32l4xx_ll_adc.h"
+#include "stm32l4xx_ll_usart.h"
+#include <string.h>
 
-TIM_HandleTypeDef tim_hal = {};
-UART_HandleTypeDef huart = {};
+
+
 ADC_HandleTypeDef myAdc = {};
+TIM_HandleTypeDef tim_hal = {};
+ADC_HandleTypeDef hadc_temp;
+
 
 int main(void)
 {
 	HAL_Init();
 
-	__HAL_RCC_GPIOB_CLK_ENABLE();
-	GPIO_InitTypeDef gpio_hal = {};
-	gpio_hal.Mode = GPIO_MODE_OUTPUT_PP;
-	gpio_hal.Pin = GPIO_PIN_3;
-	HAL_GPIO_Init(GPIOB, &gpio_hal);
 
-	//TIM2
+
 	__HAL_RCC_TIM2_CLK_ENABLE();
 	tim_hal.Instance = TIM2;
 	tim_hal.Init.Prescaler = SystemCoreClock/1000;
-	tim_hal.Init.Period = 721;
+	tim_hal.Init.Period = 2000;
 	HAL_TIM_Base_Init(&tim_hal);
 
 	HAL_TIM_Base_Start_IT(&tim_hal);
 	HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
-	// Konfiguracja PORTA pod UART
-	__HAL_RCC_GPIOA_CLK_ENABLE();
-	GPIO_InitTypeDef gpio_uart = {};
-	gpio_uart.Mode = GPIO_MODE_AF_PP;
-	gpio_uart.Alternate = GPIO_AF3_USART2;
-	gpio_uart.Pin = GPIO_PIN_15;
-	HAL_GPIO_Init(GPIOA, &gpio_uart);
 
-	// Konfiguracja PORTA pod UART
-	__HAL_RCC_GPIOA_CLK_ENABLE();
-	gpio_uart.Mode = GPIO_MODE_AF_PP;
-	gpio_uart.Alternate = GPIO_AF7_USART2;
-	gpio_uart.Pin = GPIO_PIN_2;
-	HAL_GPIO_Init(GPIOA, &gpio_uart);
+		//--------------------------------------------------------------------------------------------------
+		//							CMSIS GPIO - DIODA LED_B3
+		//--------------------------------------------------------------------------------------------------
+
+		RCC->AHB2ENR &= ~RCC_AHB2ENR_GPIOBEN_Msk;
+		RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
+		GPIOB->MODER &= ~GPIO_MODER_MODE3;
+		GPIOB->MODER |= GPIO_MODER_MODE3_0;
+
+		GPIOB->ODR = GPIO_ODR_OD3;
 
 
-	__HAL_RCC_USART2_CLK_ENABLE();
-	huart.Instance = USART2;
-	huart.Init.BaudRate = 115200;
-	huart.Init.Mode = UART_MODE_TX;
+	//--------------------------------------------------------------------------------------------------
+	//							UART (LL)
+	//--------------------------------------------------------------------------------------------------
+	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
+	LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_USART2);
 
-	HAL_UART_Init(&huart);
+	LL_GPIO_InitTypeDef gpio_uart;
+	LL_GPIO_StructInit(&gpio_uart);
+	gpio_uart.Mode = LL_GPIO_MODE_ALTERNATE;
+	gpio_uart.Alternate = LL_GPIO_AF_3;
+	gpio_uart.Pin = LL_GPIO_PIN_15;
+	LL_GPIO_Init(GPIOA, &gpio_uart);
 
-	uint8_t pData[3];
-	uint16_t dataSize = 1;
-	uint32_t timeout = 200;
+
+	LL_GPIO_StructInit(&gpio_uart);
+	gpio_uart.Mode = LL_GPIO_MODE_ALTERNATE;
+	gpio_uart.Alternate = LL_GPIO_AF_7;
+	gpio_uart.Pin = LL_GPIO_PIN_2;
+	LL_GPIO_Init(GPIOA, &gpio_uart);
+
+
+	LL_USART_InitTypeDef ll_uart;
+	LL_USART_StructInit(&ll_uart);
+	ll_uart.BaudRate = 115200;
+	ll_uart.TransferDirection = LL_USART_DIRECTION_TX;
+
+	LL_USART_Init(USART2, &ll_uart);
+	LL_USART_Enable(USART2);
+
 
 
 	// -------------------------------------------------------------
@@ -76,26 +81,71 @@ int main(void)
 
 	//ADC_CHANNEL_TEMPSENSOR
 
-	__HAL_RCC_ADC_CLK_ENABLE();
-	myAdc.Instance = ADC1;
-	myAdc.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-	myAdc.Init.Resolution = ADC_RESOLUTION_12B;
-	HAL_ADCEx_Calibration_Start();
 
+	__HAL_RCC_ADC_CLK_ENABLE();
+
+
+	hadc_temp.Instance = ADC1;
+	hadc_temp.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+	hadc_temp.Init.Resolution = ADC_RESOLUTION_12B;
+	hadc_temp.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+	hadc_temp.Init.ScanConvMode = ADC_SCAN_DISABLE;
+	hadc_temp.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+	hadc_temp.Init.LowPowerAutoWait = DISABLE;
+	hadc_temp.Init.ContinuousConvMode = DISABLE;
+	hadc_temp.Init.NbrOfConversion = 1;
+	hadc_temp.Init.DiscontinuousConvMode = DISABLE;
+	hadc_temp.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+	hadc_temp.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+	hadc_temp.Init.DMAContinuousRequests = DISABLE;
+	hadc_temp.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+	hadc_temp.Init.OversamplingMode = DISABLE;
+	HAL_ADC_Init(&hadc_temp);
+
+	ADC_ChannelConfTypeDef ch_conf = {};
+
+	ch_conf.Channel = ADC_CHANNEL_TEMPSENSOR;
+	ch_conf.Rank = ADC_REGULAR_RANK_1;
+	ch_conf.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+	ch_conf.SingleDiff = ADC_SINGLE_ENDED;
+	ch_conf.OffsetNumber = ADC_OFFSET_NONE;
+	ch_conf.Offset = 0;
+	HAL_ADC_ConfigChannel(&hadc_temp, &ch_conf);
+
+
+	HAL_ADC_Start(&hadc_temp);
+
+	int32_t data;
+	float data2;
+	float Temperature;
+
+	//HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
+	//HAL_NVIC_SetPriority(ADC1_IRQn, 0, 0);
+	//HAL_NVIC_EnableIRQ(ADC1_IRQn);
+
+	//HAL_ADC_Start_IT(&hadc_temp);
 
 
 
 	for(;;)
 	{
-		//HAL_UART_Transmit
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
-		HAL_Delay(500UL);
+		HAL_Delay(500U);
+		while(!LL_USART_IsActiveFlag_TXE(USART2));
+		LL_USART_TransmitData8(USART2,'T');
+		HAL_Delay(500U);
 
-		HAL_ADC_Start();
-		HAL_ADC_PollForConversion();
-		pData[0] = HAL_ADC_GetValue();
-		HAL_UART_Transmit(&huart, pData, dataSize, timeout);
-		HAL_ADC_Stop();
+		if(HAL_ADC_PollForConversion(&hadc_temp, 100000) == HAL_OK)
+		{
+
+				data = HAL_ADC_GetValue(&hadc_temp);
+				data2 =  (float)(3.3*data)/4096;
+				Temperature = ((data2-0.76)/0.0025)+25;
+
+		}
+
+		HAL_ADC_Start(&hadc_temp);
+
+
 	}
 }
 
@@ -107,9 +157,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim)
 	}
 	else if(htim->Instance == TIM2)
 	{
-		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_3);
+		GPIOB->ODR ^=  GPIO_ODR_OD3;
 	}
 }
 
+void sendString(uint8_t *data, uint8_t len)
+{
+	uint8_t i;
+	for (i = 0; i < len; i++)
+	{
+		while(!LL_USART_IsActiveFlag_TXE(USART2));
+		LL_USART_TransmitData8(USART2,data[i]);
+	}
+}
 
+void floatToUint8_t(float value, uint8_t *buff)
+{
+	snprintf(buffer, sizeof buffer, "%f", myFloat);
+}
 
