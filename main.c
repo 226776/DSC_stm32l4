@@ -1,4 +1,3 @@
-
 #include "stm32l4xx.h"
 			
 #include "stm32l4xx_hal.h"
@@ -7,13 +6,14 @@
 #include "stm32l4xx_ll_bus.h"
 #include "stm32l4xx_ll_utils.h"
 #include "stm32l4xx_ll_usart.h"
-#include <string.h>
+#include <stdio.h>
 
-
+void sendData(uint8_t *data, uint8_t len);
 
 ADC_HandleTypeDef myAdc = {};
 TIM_HandleTypeDef tim_hal = {};
 ADC_HandleTypeDef hadc_temp;
+LL_GPIO_InitTypeDef gpio_uart;
 
 
 int main(void)
@@ -50,7 +50,7 @@ int main(void)
 	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
 	LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_USART2);
 
-	LL_GPIO_InitTypeDef gpio_uart;
+
 	LL_GPIO_StructInit(&gpio_uart);
 	gpio_uart.Mode = LL_GPIO_MODE_ALTERNATE;
 	gpio_uart.Alternate = LL_GPIO_AF_3;
@@ -112,37 +112,40 @@ int main(void)
 	ch_conf.Offset = 0;
 	HAL_ADC_ConfigChannel(&hadc_temp, &ch_conf);
 
+	HAL_ADCEx_Calibration_Start(&hadc_temp, 1);
 
 	HAL_ADC_Start(&hadc_temp);
 
-	int32_t data;
-	float data2;
-	float Temperature;
+	uint8_t text[] = "Temperatura: ";
+	uint32_t data;
+	uint32_t Temperature;
+	uint8_t temp[3];
 
 	//HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 	//HAL_NVIC_SetPriority(ADC1_IRQn, 0, 0);
 	//HAL_NVIC_EnableIRQ(ADC1_IRQn);
 
-	//HAL_ADC_Start_IT(&hadc_temp);
+	//HAL_ADC_Start_IT(&hadc_temp);s
 
 
 
 	for(;;)
 	{
 		HAL_Delay(500U);
-		while(!LL_USART_IsActiveFlag_TXE(USART2));
-		LL_USART_TransmitData8(USART2,'T');
-		HAL_Delay(500U);
+
+		sendData(text, 13);
+
 
 		if(HAL_ADC_PollForConversion(&hadc_temp, 100000) == HAL_OK)
 		{
 
 				data = HAL_ADC_GetValue(&hadc_temp);
-				data2 =  (float)(3.3*data)/4096;
-				Temperature = ((data2-0.76)/0.0025)+25;
-
+				Temperature = __HAL_ADC_CALC_TEMPERATURE(3300, data, ADC_RESOLUTION_12B);
 		}
 
+		sprintf(temp,"%d",Temperature);
+		sendData(temp, 2);
+		sendData("\n",1);
 		HAL_ADC_Start(&hadc_temp);
 
 
@@ -171,8 +174,14 @@ void sendString(uint8_t *data, uint8_t len)
 	}
 }
 
-void floatToUint8_t(float value, uint8_t *buff)
+void sendData(uint8_t *data, uint8_t len)
 {
-	snprintf(buffer, sizeof buffer, "%f", myFloat);
+	for(int i = 0; i<len; i++)
+	{
+		while(!LL_USART_IsActiveFlag_TXE(USART2));
+		LL_USART_TransmitData8(USART2,data[i]);
+	}
 }
+
+
 
