@@ -36,6 +36,7 @@ void SysTick_Handler(void)
 {
 	HAL_IncTick();
 	HAL_SYSTICK_IRQHandler();
+
 #ifdef USE_RTOS_SYSTICK
 	osSystickHandler();
 #endif
@@ -45,6 +46,5 @@ extern TIM_HandleTypeDef tim_hal;
 void TIM2_IRQHandler(void)
 {
 	HAL_TIM_IRQHandler(&tim_hal);
-
-
 }
+
