@@ -14,6 +14,7 @@
 
 DAC_HandleTypeDef hdac = {};
 TIM_HandleTypeDef tim_hal = {};
+ADC_HandleTypeDef hadc = {};
 
 int main(void)
 {
@@ -33,26 +34,42 @@ int main(void)
 	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
 	// PA4 analog mode DAC_OUT1
 	GPIOA->MODER &= ~GPIO_MODER_MODE4;
-	GPIOA->MODER |= GPIO_MODER_MODE4_0 | GPIO_MODER_MODE4_1;
+	GPIOA->MODER |= GPIO_MODER_MODE4_0;
+	//GPIOA->MODER |= GPIO_MODER_MODE4_0 | GPIO_MODER_MODE4_1;
 	// PA5 analog mode DAC_OUT2
 	GPIOA->MODER &= ~GPIO_MODER_MODE5;
 	GPIOA->MODER |= GPIO_MODER_MODE5_0 | GPIO_MODER_MODE5_1;
 
 
 	__HAL_RCC_DAC1_CLK_ENABLE();
+	hdac.Instance = DAC1;
+	HAL_DAC_Init(&hdac);
 
-	//hdac.Instance = DAC1;
+	DAC_ChannelConfTypeDef dac_conf = {};
+	dac_conf.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+	dac_conf.DAC_Trigger = DAC_TRIGGER_NONE;
+	dac_conf.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+	dac_conf.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
+	dac_conf.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+	HAL_DAC_ConfigChannel(&hdac, &dac_conf, DAC_CHANNEL_2);
+
+	HAL_DAC_GetState(&hdac);
 
 
+	HAL_DAC_Start(&hdac, DAC_CHANNEL_2);
+	HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 2000);
 
-
+	HAL_DAC_GetState(&hdac);
 
 
 	while(1)
 	{
-		//HAL_Delay(500U);
+		HAL_Delay(500U);
 		GPIOB->ODR ^= GPIO_ODR_OD3;
-		for(int i = 0; i<100000; i++);
+		GPIOA->ODR ^= GPIO_ODR_OD4;
+		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1000);
+		HAL_Delay(100U);
+		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 2000);
 	}
 }
 
@@ -63,3 +80,4 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim)
 		HAL_IncTick();
 	}
 }
+
