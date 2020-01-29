@@ -11,7 +11,17 @@
 
 #include "stm32l4xx.h"
 #include "stm32l4xx_hal.h"
+#include <math.h>
 
+// Definitions
+#define PI 3.1415
+
+float angle = 0;
+float scal = PI/180;
+float sinVal = 0;
+uint32_t DAC_data = 0;
+
+// Structures declaration
 DAC_HandleTypeDef hdac = {};
 TIM_HandleTypeDef tim_hal = {};
 ADC_HandleTypeDef hadc = {};
@@ -53,23 +63,31 @@ int main(void)
 	dac_conf.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
 	HAL_DAC_ConfigChannel(&hdac, &dac_conf, DAC_CHANNEL_2);
 
-	HAL_DAC_GetState(&hdac);
-
-
+	// DAC Start
 	HAL_DAC_Start(&hdac, DAC_CHANNEL_2);
-	HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 2000);
 
-	HAL_DAC_GetState(&hdac);
 
 
 	while(1)
 	{
-		HAL_Delay(500U);
+
+		sinVal = sin(angle*scal);
+		sinVal *= 1000;
+		sinVal += 2000;
+		DAC_data = (uint32_t) sinVal;
+
+
 		GPIOB->ODR ^= GPIO_ODR_OD3;
 		GPIOA->ODR ^= GPIO_ODR_OD4;
 		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1000);
-		HAL_Delay(100U);
-		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 2000);
+
+		angle += 20;
+		if(angle>360)
+		{
+			angle = 0;
+		}
+
+		HAL_Delay(10U);
 	}
 }
 
