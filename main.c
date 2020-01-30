@@ -72,22 +72,21 @@ int main(void)
 	{
 
 		sinVal = sin(angle*scal);
-		sinVal *= 1000;
+		sinVal *= 2000;
 		sinVal += 2000;
 		DAC_data = (uint32_t) sinVal;
 
 
 		GPIOB->ODR ^= GPIO_ODR_OD3;
 		GPIOA->ODR ^= GPIO_ODR_OD4;
-		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1000);
+		HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, DAC_data);
 
-		angle += 20;
+		angle += 5;
 		if(angle>360)
 		{
 			angle = 0;
 		}
-
-		HAL_Delay(10U);
+		for(int i = 0; i < 100; i++){}
 	}
 }
 
